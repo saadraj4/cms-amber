@@ -1,0 +1,321 @@
+import React, { useMemo, useState, useRef } from 'react';
+import Modal from '../components/UI/Modal';
+import { fileToDataUrl } from '../utils/file';
+import { toast } from 'react-hot-toast';
+
+const Testimonials = () => {
+  const [items, setItems] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ buyerName: '', source: '', imageDataUrl: '', type: 'text', reviewText: '', videoDataUrl: '' });
+  const [isDragOver, setIsDragOver] = useState(false);
+  const imageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+
+  const openModal = (item = null) => {
+    setEditing(item);
+    setForm(item ? { ...item } : { buyerName: '', source: '', imageDataUrl: '', type: 'text', reviewText: '', videoDataUrl: '' });
+    setModalOpen(true);
+  };
+
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+    
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB');
+      return;
+    }
+    
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setForm(prev => ({ ...prev, imageDataUrl: dataUrl }));
+      toast.success('Image uploaded successfully');
+    } catch {
+      toast.error('Failed to upload image');
+    }
+  };
+
+  const handleImageInputChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+  };
+
+  const handleImageDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+  };
+
+  const handleImageDragOver = (e) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleImageDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const removeImage = () => {
+    setForm(prev => ({ ...prev, imageDataUrl: '' }));
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+    toast.success('Image removed');
+  };
+
+  const handleVideoUpload = async (file) => {
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+      toast.error('Please select a valid video file');
+      return;
+    }
+    
+    // Validate file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Video size should be less than 50MB');
+      return;
+    }
+    
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setForm(prev => ({ ...prev, videoDataUrl: dataUrl }));
+      toast.success('Video uploaded successfully');
+    } catch {
+      toast.error('Failed to upload video');
+    }
+  };
+
+  const handleVideoInputChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      handleVideoUpload(file);
+    }
+  };
+
+  const removeVideo = () => {
+    setForm(prev => ({ ...prev, videoDataUrl: '' }));
+    if (videoInputRef.current) {
+      videoInputRef.current.value = '';
+    }
+    toast.success('Video removed');
+  };
+  const submit = (e) => {
+    e.preventDefault();
+    const payload = { ...form, reviewText: form.type === 'video' ? '' : form.reviewText, videoDataUrl: form.type === 'text' ? '' : form.videoDataUrl };
+    if (editing) {
+      setItems(prev => prev.map(i => i.id === editing.id ? { ...editing, ...payload } : i));
+      toast.success('Testimonial updated');
+    } else {
+      setItems(prev => [...prev, { id: Date.now().toString(), ...payload }]);
+      toast.success('Testimonial added');
+    }
+    setModalOpen(false);
+    setEditing(null);
+  };
+
+  const testimonials = useMemo(() => items, [items]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Testimonials</h1>
+        <button onClick={() => openModal()} className="px-3 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white">+ Add</button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+        {testimonials.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {testimonials.map(item => (
+              <div key={item.id} className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center mb-2">
+                  {item.imageDataUrl && <img src={item.imageDataUrl} alt={item.buyerName} className="w-10 h-10 rounded-full mr-3 object-cover" />}
+                  <div>
+                    <div className="font-medium text-gray-900">{item.buyerName}</div>
+                    <div className="text-xs text-gray-500">{item.source}</div>
+                  </div>
+                </div>
+                {item.type === 'text' ? (
+                  <div className="text-sm text-gray-700">{item.reviewText}</div>
+                ) : (
+                  item.videoDataUrl ? (
+                    <video controls className="w-full rounded mt-2">
+                      <source src={item.videoDataUrl} />
+                    </video>
+                  ) : (
+                    <div className="text-sm text-gray-500">No video uploaded</div>
+                  )
+                )}
+                <div className="flex justify-end space-x-3 mt-3">
+                  <button onClick={() => openModal(item)} className="text-primary">Edit</button>
+                  <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))} className="text-red-600">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">No testimonials yet.</div>
+        )}
+      </div>
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Testimonial' : 'Add Testimonial'} size="lg">
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input type="text" placeholder="Buyer name" value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2" required />
+            <input type="text" placeholder="How did you get the buyer (source)" value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Buyer Image</label>
+            {form.imageDataUrl ? (
+              <div className="relative">
+                <div className="w-40 h-40 bg-white rounded-lg border-2 border-gray-200 overflow-hidden flex items-center justify-center shadow-md">
+                  <img 
+                    alt="Buyer" 
+                    src={form.imageDataUrl} 
+                    className="max-h-full max-w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                    style={{ imageRendering: 'auto' }}
+                  />
+                </div>
+                <button
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 transition-colors shadow-lg"
+                  title="Remove image"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div
+                onDrop={handleImageDrop}
+                onDragOver={handleImageDragOver}
+                onDragLeave={handleImageDragLeave}
+                className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                  isDragOver 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onClick={() => imageInputRef.current?.click()}
+              >
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageInputChange}
+                  className="hidden"
+                />
+                
+                <div className="space-y-2">
+                  <div className="mx-auto w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs font-medium text-gray-700">
+                      {isDragOver ? 'Drop image here' : 'Upload buyer image'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      PNG, JPG up to 5MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center space-x-4">
+            <label className="flex items-center space-x-2">
+              <input type="radio" name="reviewType" value="text" checked={form.type === 'text'} onChange={() => setForm({ ...form, type: 'text' })} />
+              <span className="text-sm">Text review</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input type="radio" name="reviewType" value="video" checked={form.type === 'video'} onChange={() => setForm({ ...form, type: 'video' })} />
+              <span className="text-sm">Video review</span>
+            </label>
+          </div>
+          {form.type === 'text' ? (
+            <textarea placeholder="Review text" rows={4} value={form.reviewText} onChange={(e) => setForm({ ...form, reviewText: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Upload Video</label>
+              {form.videoDataUrl ? (
+                <div className="relative">
+                  <video controls className="w-full h-48 bg-gray-100 rounded-lg mb-2">
+                    <source src={form.videoDataUrl} />
+                  </video>
+                  <button
+                    onClick={removeVideo}
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 transition-colors"
+                    title="Remove video"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="relative border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer border-gray-300 hover:border-gray-400"
+                  onClick={() => videoInputRef.current?.click()}
+                >
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoInputChange}
+                    className="hidden"
+                  />
+                  
+                  <div className="space-y-3">
+                    <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">
+                        Upload video review
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Click to browse video files
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        MP4, MOV up to 50MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end space-x-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">{editing ? 'Update' : 'Add'}</button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+export default Testimonials;
+
